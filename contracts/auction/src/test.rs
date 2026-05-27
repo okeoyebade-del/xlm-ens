@@ -96,4 +96,50 @@ mod tests {
         assert_eq!(settlement.clearing_price, 750); // Second highest bid
         assert!(settlement.sold);
     }
+
+    // ── #157: auction discovery query helpers ──────────────────────────────
+
+    #[test]
+    fn discovery_queries_handle_empty_state() {
+        let env = Env::default();
+        let client = AuctionContractClient::new(&env, &env.register(AuctionContract, ()));
+        assert_eq!(client.auction_names().len(), 0);
+        assert_eq!(client.active_auctions(&100).len(), 0);
+        assert_eq!(client.settled_auctions().len(), 0);
+    }
+
+    #[test]
+    fn discovery_queries_filter_active_and_settled() {
+        let env = Env::default();
+        let alice = Address::generate(&env);
+        let client = AuctionContractClient::new(&env, &env.register(AuctionContract, ()));
+
+        let a = String::from_str(&env, "alpha.xlm");
+        let b = String::from_str(&env, "bravo.xlm");
+        let c = String::from_str(&env, "charlie.xlm");
+        client.create_auction(&a, &100, &10, &20);
+        client.create_auction(&b, &100, &10, &20);
+        client.create_auction(&c, &100, &100, &200);
+
+        // Index records every created auction, in creation order.
+        let names = client.auction_names();
+        assert_eq!(names.len(), 3);
+        assert_eq!(names.get(0), Some(a.clone()));
+
+        // At t=15: a and b are open; c hasn't started.
+        let active = client.active_auctions(&15);
+        assert_eq!(active.len(), 2);
+
+        // Settle `a`, then it must move out of active and into settled.
+        client.place_bid(&a, &alice, &500, &12);
+        client.settle(&a, &21).unwrap();
+
+        let active_after = client.active_auctions(&15);
+        assert_eq!(active_after.len(), 1); // only b remains active
+        assert_eq!(active_after.get(0).unwrap().name, b);
+
+        let settled = client.settled_auctions();
+        assert_eq!(settled.len(), 1);
+        assert_eq!(settled.get(0).unwrap().name, a);
+    }
 }

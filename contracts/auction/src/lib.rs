@@ -36,7 +36,13 @@ pub struct Auction {
 enum DataKey {
     Auction(String),
     Settlement(String),
+    /// Append-only index of created auction names, enabling discovery queries
+    /// (#157) without callers needing to know storage keys.
+    AuctionNames,
 }
+
+/// Bounded result window for auction discovery queries (#157).
+const MAX_AUCTION_RESULTS: u32 = 100;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -78,7 +84,72 @@ impl AuctionContract {
             bids: Vec::new(&env),
         };
         env.storage().persistent().set(&key, &auction);
+
+        // Record the name in the discovery index (#157).
+        let mut names: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::AuctionNames)
+            .unwrap_or_else(|| Vec::new(&env));
+        names.push_back(name.clone());
+        env.storage().persistent().set(&DataKey::AuctionNames, &names);
         Ok(())
+    }
+
+    /// Names of all auctions ever created, in creation order. Bounded to at most
+    /// [`MAX_AUCTION_RESULTS`] entries (oldest first) so the call can't return an
+    /// unbounded result set (#157).
+    pub fn auction_names(env: Env) -> Vec<String> {
+        let names: Vec<String> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::AuctionNames)
+            .unwrap_or_else(|| Vec::new(&env));
+        let mut out = Vec::new(&env);
+        for name in names.iter().take(MAX_AUCTION_RESULTS as usize) {
+            out.push_back(name);
+        }
+        out
+    }
+
+    /// Auctions that are currently open at `now_unix` — started, not yet ended,
+    /// and not settled — in creation order, bounded to [`MAX_AUCTION_RESULTS`]
+    /// (#157).
+    pub fn active_auctions(env: Env, now_unix: u64) -> Vec<Auction> {
+        let mut out = Vec::new(&env);
+        for name in Self::auction_names(env.clone()).iter() {
+            if env
+                .storage()
+                .persistent()
+                .has(&DataKey::Settlement(name.clone()))
+            {
+                continue;
+            }
+            if let Some(auction) = Self::auction(env.clone(), name.clone()) {
+                if now_unix >= auction.starts_at && now_unix <= auction.ends_at {
+                    out.push_back(auction);
+                }
+            }
+        }
+        out
+    }
+
+    /// Auctions that have been settled, in creation order, bounded to
+    /// [`MAX_AUCTION_RESULTS`] (#157).
+    pub fn settled_auctions(env: Env) -> Vec<Auction> {
+        let mut out = Vec::new(&env);
+        for name in Self::auction_names(env.clone()).iter() {
+            if env
+                .storage()
+                .persistent()
+                .has(&DataKey::Settlement(name.clone()))
+            {
+                if let Some(auction) = Self::auction(env.clone(), name.clone()) {
+                    out.push_back(auction);
+                }
+            }
+        }
+        out
     }
 
     pub fn place_bid(
