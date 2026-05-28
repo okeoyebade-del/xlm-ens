@@ -40,6 +40,22 @@ pub struct RegistrarMetrics {
     pub total_renewals: u64,
 }
 
+/// Issue #311: Lifecycle status for a name from the registrar's perspective.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub enum RegistrationStatus {
+    /// Never registered or already re-claimable (past grace period).
+    Unavailable,
+    /// Actively registered and not yet expired.
+    Active,
+    /// Expired but still within the grace period — only the current owner may renew.
+    GracePeriod,
+    /// Past the grace period; anyone may register the name.
+    Claimable,
+    /// Blocked by the reserved-label list; cannot be registered at all.
+    Reserved,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[contracttype]
 pub struct RegistrationRecord {
@@ -364,6 +380,63 @@ impl RegistrarContract {
 
     pub fn supports_admin_recovery(_env: Env) -> bool {
         ADMIN_RECOVERY_SUPPORTED
+    }
+
+    /// Issue #311: Return the lifecycle status of a name.
+    pub fn registration_status(env: Env, label: String, now_unix: u64) -> RegistrationStatus {
+        // Check reserved first
+        if env
+            .storage()
+            .persistent()
+            .get::<_, bool>(&DataKey::Reserved(label.clone()))
+            .unwrap_or(false)
+        {
+            return RegistrationStatus::Reserved;
+        }
+
+        let name = match build_xlm_name(&env, &label) {
+            Ok(n) => n,
+            Err(_) => return RegistrationStatus::Unavailable,
+        };
+
+        let record = match env
+            .storage()
+            .persistent()
+            .get::<_, RegistrationRecord>(&DataKey::Registration(name))
+        {
+            Some(r) => r,
+            None => return RegistrationStatus::Unavailable,
+        };
+
+        if now_unix <= record.expires_at {
+            RegistrationStatus::Active
+        } else if now_unix <= record.grace_period_ends_at {
+            RegistrationStatus::GracePeriod
+        } else {
+            RegistrationStatus::Claimable
+        }
+    }
+
+    /// Issue #313: Read-only aggregate accounting report for operator reconciliation.
+    /// Returns the same data as fee_metrics() with an intent-revealing name.
+    pub fn accounting_report(env: Env) -> RegistrarMetrics {
+        RegistrarMetrics {
+            treasury_balance: env
+                .storage()
+                .persistent()
+                .get(&DataKey::Treasury)
+                .unwrap_or(0),
+            total_registrations: env
+                .storage()
+                .persistent()
+                .get(&DataKey::RegistrationCount)
+                .unwrap_or(0),
+            total_renewals: env
+                .storage()
+                .persistent()
+                .get(&DataKey::RenewalCount)
+                .unwrap_or(0),
+        }
     }
 }
 

@@ -391,4 +391,80 @@ mod tests {
         assert_eq!(results.get(1), Some(Some(name2))); // GBBB -> bob.xlm
         assert_eq!(results.get(2), Some(None)); // GCCC -> None
     }
+
+    // Issue #314 - text-record key normalization tests
+
+    #[test]
+    fn accepts_valid_text_record_keys() {
+        let env = Env::default();
+        let contract_id = env.register(ResolverContract, ());
+        let client = ResolverContractClient::new(&env, &contract_id);
+        let owner = Address::generate(&env);
+        let name = String::from_str(&env, "alice.xlm");
+        client.set_record(&name, &owner, &String::from_str(&env, "GABC"), &100);
+        // plain lowercase
+        client.set_text_record(&name, &owner, &String::from_str(&env, "url"), &String::from_str(&env, "https://x"), &101);
+        // namespaced with dot
+        client.set_text_record(&name, &owner, &String::from_str(&env, "com.twitter"), &String::from_str(&env, "@alice"), &102);
+        // dash and underscore
+        client.set_text_record(&name, &owner, &String::from_str(&env, "org.did_key-1"), &String::from_str(&env, "did:x"), &103);
+        assert_eq!(client.resolve(&name).unwrap().text_records.len(), 3);
+    }
+
+    #[test]
+    fn rejects_uppercase_text_record_key() {
+        let env = Env::default();
+        let contract_id = env.register(ResolverContract, ());
+        let client = ResolverContractClient::new(&env, &contract_id);
+        let owner = Address::generate(&env);
+        let name = String::from_str(&env, "alice.xlm");
+        client.set_record(&name, &owner, &String::from_str(&env, "GABC"), &100);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.set_text_record(&name, &owner, &String::from_str(&env, "Twitter"), &String::from_str(&env, "@alice"), &101);
+        }));
+        assert!(result.is_err(), "uppercase key must be rejected");
+    }
+
+    #[test]
+    fn rejects_empty_text_record_key() {
+        let env = Env::default();
+        let contract_id = env.register(ResolverContract, ());
+        let client = ResolverContractClient::new(&env, &contract_id);
+        let owner = Address::generate(&env);
+        let name = String::from_str(&env, "alice.xlm");
+        client.set_record(&name, &owner, &String::from_str(&env, "GABC"), &100);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.set_text_record(&name, &owner, &String::from_str(&env, ""), &String::from_str(&env, "val"), &101);
+        }));
+        assert!(result.is_err(), "empty key must be rejected");
+    }
+
+    #[test]
+    fn rejects_overlong_text_record_key() {
+        let env = Env::default();
+        let contract_id = env.register(ResolverContract, ());
+        let client = ResolverContractClient::new(&env, &contract_id);
+        let owner = Address::generate(&env);
+        let name = String::from_str(&env, "alice.xlm");
+        client.set_record(&name, &owner, &String::from_str(&env, "GABC"), &100);
+        let long_key = "a".repeat(65);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.set_text_record(&name, &owner, &String::from_str(&env, &long_key), &String::from_str(&env, "val"), &101);
+        }));
+        assert!(result.is_err(), "65-byte key must be rejected");
+    }
+
+    #[test]
+    fn rejects_text_record_key_with_space() {
+        let env = Env::default();
+        let contract_id = env.register(ResolverContract, ());
+        let client = ResolverContractClient::new(&env, &contract_id);
+        let owner = Address::generate(&env);
+        let name = String::from_str(&env, "alice.xlm");
+        client.set_record(&name, &owner, &String::from_str(&env, "GABC"), &100);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.set_text_record(&name, &owner, &String::from_str(&env, "bad key"), &String::from_str(&env, "val"), &101);
+        }));
+        assert!(result.is_err(), "key with space must be rejected");
+    }
 }

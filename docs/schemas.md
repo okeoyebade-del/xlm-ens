@@ -64,3 +64,48 @@ Fields:
 - `set_text_record(name, caller, key, value, now_unix) -> Result<(), ResolverError>`
 - Writes mutate the `text_records` map inside the `Forward(<name>)` record.
 
+#### Text-record key normalization (#314)
+
+Keys are validated on every write. A key is accepted when **all** of the
+following hold:
+
+- **Length**: 1–64 bytes (inclusive).
+- **Characters**: lowercase ASCII letters `a-z`, digits `0-9`, dot `.`,
+  dash `-`, or underscore `_`. Uppercase letters, spaces, and any other
+  byte are rejected with `ResolverError::InvalidKey` (code 8).
+- **Namespace convention**: reverse-DNS style namespacing (e.g.
+  `com.twitter`, `org.did_key`) is the recommended pattern but is not
+  enforced beyond the character set above.
+
+Keys are stored **exactly as supplied**; the contract does not
+automatically lowercase or otherwise transform the key. Callers are
+responsible for normalising (e.g. lowercasing) before calling
+`set_text_record`.
+
+---
+
+## Registrar
+
+### `registration_status(label, now_unix) -> RegistrationStatus` (#311)
+
+Returns the lifecycle status of a label (without the `.xlm` suffix):
+
+| Variant | Meaning |
+|---------|---------|
+| `Unavailable` | Never registered, or no record exists. |
+| `Active` | Registered and not yet expired (`now_unix <= expires_at`). |
+| `GracePeriod` | Expired but within grace window; only current owner may renew. |
+| `Claimable` | Past grace period; anyone may register. |
+| `Reserved` | Blocked by the reserved-label list; cannot be registered. |
+
+### `accounting_report() -> RegistrarMetrics` (#313)
+
+Read-only aggregate view for operator reconciliation. Returns the same
+`RegistrarMetrics` struct as `fee_metrics()`:
+
+- `treasury_balance` (u64): cumulative stroops received (registrations + renewals, including overpayments).
+- `total_registrations` (u64): lifetime successful registration count.
+- `total_renewals` (u64): lifetime successful renewal count.
+
+No write to storage is performed; this function is safe to call at any
+time without side-effects.

@@ -40,6 +40,8 @@ pub enum ResolverError {
     NotInitialized = 5,
     TextRecordValueTooLong = 6,
     InvalidChain = 7,
+    // #314: text-record key failed normalization check
+    InvalidKey = 8,
 }
 
 #[contract]
@@ -173,6 +175,11 @@ impl ResolverContract {
         value: String,
         now_unix: u64,
     ) -> Result<(), ResolverError> {
+        // Issue #314: Validate text-record key normalization.
+        // Keys must be 1–64 bytes, lowercase ASCII, and contain only
+        // letters, digits, dots (.), dashes (-), or underscores (_).
+        validate_text_record_key(&key).map_err(|_| ResolverError::InvalidKey)?;
+
         // Issue #315: Validate text record value size
         if value.len() > MAX_TEXT_RECORD_VALUE_LENGTH {
             return Err(ResolverError::TextRecordValueTooLong);
@@ -367,4 +374,37 @@ fn put_record(env: &Env, name: &String, record: &ResolutionRecord) {
     env.storage()
         .persistent()
         .set(&DataKey::Forward(name.clone()), record);
+}
+
+/// Issue #314: Validate a text-record key.
+///
+/// Rules:
+/// - Length: 1–64 bytes (inclusive).
+/// - Characters: lowercase ASCII letters `a-z`, digits `0-9`, dot `.`,
+///   dash `-`, or underscore `_`.
+/// - Namespace convention (e.g. `com.twitter`, `org.did`) is allowed via dots.
+///
+/// Keys are stored exactly as supplied; callers must normalise before calling
+/// (e.g. lowercase the key) because two differently-cased writes produce two
+/// distinct storage entries.
+fn validate_text_record_key(key: &String) -> Result<(), ()> {
+    const MAX_KEY_LEN: usize = 64;
+    let len = key.len() as usize;
+    if len == 0 || len > MAX_KEY_LEN {
+        return Err(());
+    }
+    let mut buf = [0u8; MAX_KEY_LEN];
+    key.copy_into_slice(&mut buf[..len]);
+    for byte in &buf[..len] {
+        let b = *byte;
+        let ok = b.is_ascii_lowercase()
+            || b.is_ascii_digit()
+            || b == b'.'
+            || b == b'-'
+            || b == b'_';
+        if !ok {
+            return Err(());
+        }
+    }
+    Ok(())
 }
