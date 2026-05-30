@@ -24,8 +24,8 @@ const DEFAULT_CHAIN: &str = "stellar";
 #[contracttype]
 enum DataKey {
     Forward(String),
-    Reverse(String),        // address -> name (for primary/reverse lookups)
-    Primary(String),        // address -> name (for primary names)
+    Reverse(String), // address -> name (for primary/reverse lookups)
+    Primary(String), // address -> name (for primary names)
     Registry,
 }
 
@@ -83,7 +83,10 @@ impl ResolverContract {
                     return Err(ResolverError::Unauthorized);
                 }
                 // Issue #316: Clean up old reverse/primary mappings when address changes
-                if let Some(old_stellar_addr) = existing.addresses.get(String::from_str(&env, DEFAULT_CHAIN)) {
+                if let Some(old_stellar_addr) = existing
+                    .addresses
+                    .get(String::from_str(&env, DEFAULT_CHAIN))
+                {
                     if old_stellar_addr != address {
                         env.storage()
                             .persistent()
@@ -222,7 +225,7 @@ impl ResolverContract {
     pub fn remove_record(env: Env, name: String, caller: Address) -> Result<(), ResolverError> {
         let record = get_record(&env, &name)?;
         assert_owner(&env, &name, &record, &caller, 0)?;
-        
+
         // Clean up reverse mappings for all chains, particularly Stellar
         if let Some(stellar_addr) = record.addresses.get(String::from_str(&env, DEFAULT_CHAIN)) {
             env.storage()
@@ -232,7 +235,7 @@ impl ResolverContract {
                 .persistent()
                 .remove(&DataKey::Primary(stellar_addr));
         }
-        
+
         env.storage()
             .persistent()
             .remove(&DataKey::Forward(name.clone()));
@@ -396,11 +399,8 @@ fn validate_text_record_key(key: &String) -> Result<(), ()> {
     key.copy_into_slice(&mut buf[..len]);
     for byte in &buf[..len] {
         let b = *byte;
-        let ok = b.is_ascii_lowercase()
-            || b.is_ascii_digit()
-            || b == b'.'
-            || b == b'-'
-            || b == b'_';
+        let ok =
+            b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'.' || b == b'-' || b == b'_';
         if !ok {
             return Err(());
         }
