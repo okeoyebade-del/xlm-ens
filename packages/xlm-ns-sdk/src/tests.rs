@@ -186,6 +186,23 @@ mod tests {
         assert_eq!(portfolio[0].owner, OWNER_ADDR);
     }
 
+    #[test]
+    fn owner_portfolio_page_returns_cursor_and_total() {
+        let first = client()
+            .list_registrations_by_owner_page(OWNER_ADDR, None, 1)
+            .unwrap();
+        assert_eq!(first.items.len(), 1);
+        assert_eq!(first.total, 2);
+        assert_eq!(first.next_cursor, Some(1));
+
+        let second = client()
+            .list_registrations_by_owner_page(OWNER_ADDR, first.next_cursor, 1)
+            .unwrap();
+        assert_eq!(second.items.len(), 1);
+        assert_eq!(second.total, 2);
+        assert_eq!(second.next_cursor, None);
+    }
+
     #[tokio::test]
     async fn auction_state_returns_typed_data() {
         let state = client().get_auction_state("active.xlm").await.unwrap();

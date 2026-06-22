@@ -145,6 +145,15 @@ enum Commands {
     Portfolio {
         /// Owner address to inspect
         owner: String,
+        /// Number of names to fetch per RPC request.
+        #[arg(long = "batch-size", default_value_t = 50)]
+        batch_size: usize,
+        /// Maximum number of names to return.
+        #[arg(long)]
+        limit: Option<usize>,
+        /// Fetch a single 1-based page instead of the whole portfolio.
+        #[arg(long)]
+        page: Option<usize>,
     },
     /// Fetch a registration price quote without submitting a transaction (read-only).
     ///
@@ -505,8 +514,18 @@ async fn run() -> anyhow::Result<()> {
             }
         },
         Commands::Whois { name } => commands::whois::run_whois(config, cli.output, &name).await,
-        Commands::Portfolio { owner } => {
-            commands::portfolio::run_portfolio(config, cli.output, &owner).await
+        Commands::Portfolio {
+            owner,
+            batch_size,
+            limit,
+            page,
+        } => {
+            let options = commands::portfolio::PortfolioOptions {
+                batch_size,
+                limit,
+                page,
+            };
+            commands::portfolio::run_portfolio(config, cli.output, &owner, options).await
         }
         Commands::Quote { name, years } => {
             commands::quote::run_quote(config, cli.output, &name, years).await

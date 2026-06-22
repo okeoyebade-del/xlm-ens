@@ -94,6 +94,11 @@ cargo run -p xlm-ns-cli -- portfolio OWNER_ADDRESS --output json
 # CSV — suitable for spreadsheets or data pipelines
 cargo run -p xlm-ns-cli -- portfolio OWNER_ADDRESS --output csv \
   > owner-export.csv
+
+# Large portfolios are fetched in pages of 50 by default. Tune the page size,
+# cap the export, or request one 1-based page when operating on registrar/DAO wallets.
+cargo run -p xlm-ns-cli -- portfolio OWNER_ADDRESS --batch-size 25 --limit 100
+cargo run -p xlm-ns-cli -- portfolio OWNER_ADDRESS --page 2 --output json
 ```
 
 Each record includes: `name`, `owner`, `resolver`,

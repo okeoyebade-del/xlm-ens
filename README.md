@@ -129,7 +129,8 @@ Examples:
 - `cargo run -p xlm-ns-cli -- resolve timmy.xlm --output json`
 - `cargo run -p xlm-ns-cli -- whois timmy.xlm --output json`
 - `cargo run -p xlm-ns-cli -- portfolio GDRA...OWNER_ADDR --output json`
-- `cargo run -p xlm-ns-cli -- portfolio GDRA...OWNER_ADDR --output csv`
+- `cargo run -p xlm-ns-cli -- portfolio GDRA...OWNER_ADDR --batch-size 50 --limit 200`
+- `cargo run -p xlm-ns-cli -- portfolio GDRA...OWNER_ADDR --page 3 --output csv`
 
 #### Contract spec artifacts (CI)
 
