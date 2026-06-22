@@ -29,7 +29,7 @@ use crate::config::ClientConfig;
 use crate::errors::SdkError;
 use crate::types::{
     AddControllerRequest, AuctionCreateRequest, AuctionInfo, BidRequest, BridgeRoute,
-    BuildMessageRequest, CreateSubdomainRequest, NftRecord, RegisterChainRequest,
+    BuildMessageRequest, CreateSubdomainRequest, NftRecord, PortfolioPage, RegisterChainRequest,
     RegisterParentRequest, RegistrationQuote, RegistrationReceipt, RegistrationRequest,
     RenewalReceipt, RenewalRequest, ResolutionResult, ReverseResolution, TextRecord,
     TextRecordUpdate, TextRecordsUpdate, TransactionSubmission, TransferRequest,
@@ -120,6 +120,16 @@ impl XlmNsBlockingClient {
         owner: &str,
     ) -> Result<Vec<ResolutionResult>, SdkError> {
         self.inner.list_registrations_by_owner(owner)
+    }
+
+    pub fn list_registrations_by_owner_page(
+        &self,
+        owner: &str,
+        cursor: Option<usize>,
+        limit: usize,
+    ) -> Result<PortfolioPage, SdkError> {
+        self.inner
+            .list_registrations_by_owner_page(owner, cursor, limit)
     }
 
     pub fn reverse_resolve(&self, address: &str) -> Result<ReverseResolution, SdkError> {

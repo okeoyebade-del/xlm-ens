@@ -259,6 +259,13 @@ pub struct ResolutionResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortfolioPage {
+    pub items: Vec<ResolutionResult>,
+    pub next_cursor: Option<usize>,
+    pub total: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReverseResolution {
     pub address: String,
     pub primary_name: Option<String>,

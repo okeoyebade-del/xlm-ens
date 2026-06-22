@@ -4,11 +4,11 @@ use crate::network;
 use crate::types::{
     AddControllerRequest, AuctionCreateRequest, AuctionInfo, AuctionState, AuctionStatus,
     BidRequest, BridgeRoute, BuildMessageRequest, CreateSubdomainRequest, FeeBreakdown, NameRecord,
-    NftRecord, RegisterChainRequest, RegisterParentRequest, RegistrarMetrics, RegistrationQuote,
-    RegistrationReceipt, RegistrationRequest, RegistryEntry, RenewalReceipt, RenewalRequest,
-    ResolutionRecord, ResolutionResult, ReverseResolution, SimulationResult, Subdomain,
-    SubmissionStatus, TextRecord, TextRecordUpdate, TextRecordsUpdate, TransactionSubmission,
-    TransferRequest, TransferSubdomainRequest, DEFAULT_FEE_CURRENCY,
+    NftRecord, PortfolioPage, RegisterChainRequest, RegisterParentRequest, RegistrarMetrics,
+    RegistrationQuote, RegistrationReceipt, RegistrationRequest, RegistryEntry, RenewalReceipt,
+    RenewalRequest, ResolutionRecord, ResolutionResult, ReverseResolution, SimulationResult,
+    Subdomain, SubmissionStatus, TextRecord, TextRecordUpdate, TextRecordsUpdate,
+    TransactionSubmission, TransferRequest, TransferSubdomainRequest, DEFAULT_FEE_CURRENCY,
 };
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
@@ -353,9 +353,25 @@ impl XlmNsClient {
         &self,
         owner: &str,
     ) -> Result<Vec<ResolutionResult>, SdkError> {
+        let first_page = self.list_registrations_by_owner_page(owner, None, usize::MAX)?;
+        Ok(first_page.items)
+    }
+
+    pub fn list_registrations_by_owner_page(
+        &self,
+        owner: &str,
+        cursor: Option<usize>,
+        limit: usize,
+    ) -> Result<PortfolioPage, SdkError> {
         Self::require_label(owner, "owner")?;
 
-        Ok(vec![
+        if limit == 0 {
+            return Err(SdkError::InvalidRequest(
+                "portfolio page size must be greater than zero".into(),
+            ));
+        }
+
+        let all_items = vec![
             ResolutionResult {
                 name: "alice.xlm".to_string(),
                 address: Some(owner.to_string()),
@@ -368,7 +384,17 @@ impl XlmNsClient {
                 resolver: self.resolver_contract_id.clone(),
                 expires_at: Some(MOCK_REFERENCE_TIMESTAMP + (2 * SECONDS_PER_YEAR)),
             },
-        ])
+        ];
+        let total = all_items.len();
+        let start = cursor.unwrap_or_default().min(total);
+        let end = start.saturating_add(limit).min(total);
+        let next_cursor = (end < total).then_some(end);
+
+        Ok(PortfolioPage {
+            items: all_items[start..end].to_vec(),
+            next_cursor,
+            total,
+        })
     }
 
     pub async fn reverse_resolve(&self, address: &str) -> Result<ReverseResolution, SdkError> {
