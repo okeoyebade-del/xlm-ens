@@ -14,8 +14,8 @@ echo "Temporary directory for new specs: $TEMP_DIR"
 echo "Markdown report will be written to: $MARKDOWN_FILE"
 
 # Ensure the temporary directory exists
+mkdir -p "$(dirname "$MARKDOWN_FILE")"
 mkdir -p "$TEMP_DIR"
-
 # List of contracts (must match the names of the WASM files without the .wasm extension)
 CONTRACTS=(
     xlm_ns_registry
