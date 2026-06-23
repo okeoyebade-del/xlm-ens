@@ -148,6 +148,7 @@ pub fn is_retryable(err: &SdkError) -> bool {
         SdkError::TransactionTimeout { .. } => true,
         SdkError::Transport(message) => transport_is_retryable(message),
         SdkError::InvalidRequest(_)
+        | SdkError::Ingestion(_)
         | SdkError::ContractError(_)
         | SdkError::NetworkPassphraseMismatch { .. }
         | SdkError::TransactionPassphraseMismatch { .. }
